@@ -1,0 +1,26 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to OpenWrt LuCI",
+        "description": "Enter the connection details for your OpenWrt router with LuCI RPC enabled.",
+        "data": {
+          "host": "IP address or hostname",
+          "username": "Username (default: root)",
+          "password": "Password",
+          "ssl": "Use HTTPS (SSL)",
+          "verify_ssl": "Verify SSL certificate",
+          "poll_interval": "Polling interval (seconds)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to OpenWrt LuCI. Check host, port, and network.",
+      "invalid_auth": "Invalid username or password.",
+      "unknown": "An unexpected error occurred."
+    },
+    "abort": {
+      "already_configured": "This OpenWrt router is already configured."
+    }
+  }
+}

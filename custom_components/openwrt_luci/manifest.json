@@ -1,0 +1,11 @@
+{
+  "domain": "openwrt_luci",
+  "name": "OpenWrt LuCI",
+  "codeowners": ["@ld-vladeck"],
+  "config_flow": true,
+  "documentation": "https://github.com/ld-vladeck/ha-openwrt-luci",
+  "issue_tracker": "https://github.com/ld-vladeck/ha-openwrt-luci/issues",
+  "integration_type": "hub",
+  "iot_class": "local_polling",
+  "version": "1.0.0"
+}

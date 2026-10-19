@@ -1,0 +1,26 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connetti a OpenWrt LuCI",
+        "description": "Inserisci i dati di connessione per il router OpenWrt con LuCI RPC attivo.",
+        "data": {
+          "host": "Indirizzo IP o hostname",
+          "username": "Nome utente (default: root)",
+          "password": "Password",
+          "ssl": "Usa HTTPS (SSL)",
+          "verify_ssl": "Verifica certificato SSL",
+          "poll_interval": "Intervallo di aggiornamento (secondi)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Impossibile connettersi a OpenWrt LuCI. Controlla IP, porta e rete.",
+      "invalid_auth": "Nome utente o password non validi.",
+      "unknown": "Si è verificato un errore imprevisto."
+    },
+    "abort": {
+      "already_configured": "Questo router OpenWrt è già configurato."
+    }
+  }
+}
