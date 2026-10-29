@@ -22,5 +22,15 @@
     "abort": {
       "already_configured": "This OpenWrt router is already configured."
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Configure OpenWrt LuCI Options",
+        "data": {
+          "poll_interval": "Polling interval (seconds)"
+        }
+      }
+    }
   }
 }
