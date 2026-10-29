@@ -1,7 +1,7 @@
 # OpenWrt LuCI Integration for Home Assistant
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/ld-vladeck/ha-openwrt-luci/main/images/logo.png" alt="OpenWrt LuCI" width="350">
+  <img src="https://raw.githubusercontent.com/ld-vladeck/ha-openwrt-luci/main/custom_components/openwrt_luci/brand/logo.png" alt="OpenWrt LuCI" width="350">
 </p>
 
 Custom component for Home Assistant providing complete monitoring, control, and wireless topology tracking for **OpenWrt routers and Access Points** using standard **LuCI RPC** (`luci-mod-rpc`).
