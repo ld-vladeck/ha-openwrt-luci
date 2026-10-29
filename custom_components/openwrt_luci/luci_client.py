@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import time
 import urllib.error
 import urllib.request
 from typing import Any
@@ -31,6 +32,7 @@ class LuciClient:
         ssl: bool = False,
         verify_ssl: bool = False,
         timeout: int = 10,
+        retries: int = 1,
     ) -> None:
         """Initialize the LuCI client."""
         self.host = host
@@ -39,6 +41,7 @@ class LuciClient:
         self.ssl = ssl
         self.verify_ssl = verify_ssl
         self.timeout = timeout
+        self.retries = retries
         self.token: str | None = None
         self._last_cpu_stat: tuple[int, int] | None = None
 
@@ -70,25 +73,57 @@ class LuciClient:
             headers={"Content-Type": "application/json"},
         )
 
-        try:
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-        except urllib.error.HTTPError as err:
-            if err.code in (401, 403) and retry_auth and endpoint != "auth":
-                _LOGGER.debug("LuCI token expired, re-authenticating...")
-                self.login()
-                return self._call(endpoint, method, params, retry_auth=False)
-            raise LuciClientError(f"HTTP error {err.code}: {err.reason}") from err
-        except Exception as err:
-            raise LuciClientError(f"Network error communicating with {self.host}: {err}") from err
+        attempt = 0
+        while True:
+            try:
+                with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                    data = json.loads(resp.read().decode("utf-8"))
+                break
+            except urllib.error.HTTPError as err:
+                if err.code in (401, 403) and retry_auth and endpoint != "auth":
+                    _LOGGER.debug("LuCI token expired, re-authenticating...")
+                    try:
+                        self.login()
+                    except Exception:
+                        self.token = None
+                        raise
+                    return self._call(endpoint, method, params, retry_auth=False)
+                if err.code in (401, 403):
+                    self.token = None
+                    raise LuciAuthError(f"HTTP error {err.code}: {err.reason}") from err
+                raise LuciClientError(f"HTTP error {err.code}: {err.reason}") from err
+            except Exception as err:
+                if attempt < self.retries:
+                    attempt += 1
+                    _LOGGER.debug(
+                        "Transient network error connecting to %s (%s), retrying (attempt %d/%d)...",
+                        self.host,
+                        err,
+                        attempt,
+                        self.retries,
+                    )
+                    time.sleep(1)
+                    continue
+                raise LuciClientError(f"Network error communicating with {self.host}: {err}") from err
 
         if data.get("error"):
-            err_msg = data["error"].get("message", "Unknown error")
-            err_code = data["error"].get("code", 0)
-            if "Access denied" in err_msg or err_code == -32002:
+            err = data["error"]
+            if isinstance(err, dict):
+                err_msg = err.get("message", "Unknown error")
+                err_code = err.get("code", 0)
+            else:
+                err_msg = str(err)
+                err_code = 0
+
+            if "Access denied" in err_msg or "unauthorized" in err_msg.lower() or err_code == -32002:
                 if retry_auth and endpoint != "auth":
-                    self.login()
+                    try:
+                        self.login()
+                    except Exception:
+                        self.token = None
+                        raise
                     return self._call(endpoint, method, params, retry_auth=False)
+                self.token = None
                 raise LuciAuthError(f"LuCI Auth Error: {err_msg}")
             raise LuciClientError(f"RPC error from {endpoint}.{method}: {err_msg}")
 
@@ -99,9 +134,11 @@ class LuciClient:
         try:
             result = self._call("auth", "login", [self.username, self.password], retry_auth=False)
         except Exception as err:
+            self.token = None
             raise LuciAuthError(f"Cannot login to {self.host}: {err}") from err
 
         if not result:
+            self.token = None
             raise LuciAuthError(f"Invalid credentials for {self.username}@{self.host}")
 
         self.token = result

@@ -77,13 +77,15 @@ class TestLuciClient(unittest.TestCase):
         with self.assertRaises(LuciClientError):
             self.client._call("sys", "fail")
 
+    @patch("time.sleep", return_value=None)
     @patch("urllib.request.urlopen")
-    def test_call_network_error(self, mock_urlopen):
+    def test_call_network_error(self, mock_urlopen, mock_sleep):
         """Test network / connection failure raises LuciClientError."""
         self.client.token = "token"
         mock_urlopen.side_effect = OSError("Connection refused")
         with self.assertRaises(LuciClientError):
             self.client._call("sys", "fail")
+        self.assertEqual(mock_sleep.call_count, 1)
 
     @patch.object(LuciClient, "login")
     @patch("urllib.request.urlopen")
@@ -297,6 +299,66 @@ class TestLuciClient(unittest.TestCase):
         success = self.client.reboot()
         self.assertFalse(success)
 
+    @patch.object(LuciClient, "login")
+    @patch("urllib.request.urlopen")
+    def test_call_rpc_error_string_access_denied(self, mock_urlopen, mock_login):
+        """Test RPC error as string triggers re-authentication."""
+        self.client.token = "token"
+        resp_denied = MagicMock()
+        resp_denied.read.return_value = json.dumps({"result": None, "error": "Access denied"}).encode("utf-8")
+        resp_denied.__enter__.return_value = resp_denied
+
+        resp_ok = MagicMock()
+        resp_ok.read.return_value = json.dumps({"result": "ok", "error": None}).encode("utf-8")
+        resp_ok.__enter__.return_value = resp_ok
+
+        mock_urlopen.side_effect = [resp_denied, resp_ok]
+
+        res = self.client._call("sys", "test")
+        self.assertEqual(res, "ok")
+        mock_login.assert_called_once()
+
+    @patch("urllib.request.urlopen")
+    def test_call_rpc_error_string_generic(self, mock_urlopen):
+        """Test RPC error as string raises LuciClientError."""
+        self.client.token = "token"
+        resp_err = MagicMock()
+        resp_err.read.return_value = json.dumps({"result": None, "error": "Internal error"}).encode("utf-8")
+        resp_err.__enter__.return_value = resp_err
+        mock_urlopen.return_value = resp_err
+
+        with self.assertRaises(LuciClientError):
+            self.client._call("sys", "test")
+
+    @patch("urllib.request.urlopen")
+    def test_call_auth_error_resets_token(self, mock_urlopen):
+        """Test that unrecoverable auth error resets token to None."""
+        self.client.token = "bad_token"
+        mock_urlopen.side_effect = urllib.error.HTTPError(
+            url="http://192.168.1.1", code=403, msg="Forbidden", hdrs={}, fp=io.BytesIO()
+        )
+        with patch.object(self.client, "login", side_effect=LuciAuthError("Login failed")):
+            with self.assertRaises(LuciAuthError):
+                self.client._call("sys", "test")
+            self.assertIsNone(self.client.token)
+
+    @patch("time.sleep", return_value=None)
+    @patch("urllib.request.urlopen")
+    def test_call_network_error_retry_success(self, mock_urlopen, mock_sleep):
+        """Test transient network error retries and succeeds."""
+        self.client.token = "token"
+        mock_success = MagicMock()
+        mock_success.read.return_value = json.dumps({"result": "success", "error": None}).encode("utf-8")
+        mock_success.__enter__.return_value = mock_success
+
+        mock_urlopen.side_effect = [OSError("Temporary network glitch"), mock_success]
+
+        result = self.client._call("sys", "test")
+        self.assertEqual(result, "success")
+        self.assertEqual(mock_urlopen.call_count, 2)
+        mock_sleep.assert_called_once()
+
 
 if __name__ == "__main__":
+
     unittest.main()

@@ -52,6 +52,14 @@ async def test_user_step_success(hass: HomeAssistant) -> None:
     ), patch(
         "custom_components.openwrt_luci.config_flow.LuciClient.get_system_info",
         return_value={"model": "OpenWrt Router", "hostname": "OpenWrt"},
+    ), patch(
+        "custom_components.openwrt_luci.coordinator.LuciCoordinator._fetch_all_data",
+        return_value={
+            "metrics": {"uptime": 100},
+            "interfaces": {},
+            "radios": {},
+            "stations": {},
+        },
     ):
         result2 = await hass.config_entries.flow.async_configure(
             result["flow_id"],

@@ -57,16 +57,19 @@ class LuciCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     def _fetch_all_data(self) -> dict[str, Any]:
         """Synchronous method to fetch metrics and status."""
-        if not self.system_info:
+        if not self.system_info or not self.system_info.get("kernel"):
             try:
-                self.system_info = self.client.get_system_info()
+                info = self.client.get_system_info()
+                if info.get("kernel"):
+                    self.system_info = info
             except Exception as err:
                 _LOGGER.warning("Could not fetch system info: %s", err)
-                self.system_info = {
-                    "model": "OpenWrt Router",
-                    "kernel": "",
-                    "hostname": self.client.host,
-                }
+                if not self.system_info:
+                    self.system_info = {
+                        "model": "OpenWrt Router",
+                        "kernel": "",
+                        "hostname": self.client.host,
+                    }
 
         if not self.router_mac:
             try:
