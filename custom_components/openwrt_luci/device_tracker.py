@@ -8,7 +8,7 @@ from typing import Any
 from homeassistant.components.device_tracker import ScannerEntity, SourceType
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC, DeviceInfo
-from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
@@ -20,7 +20,7 @@ _LOGGER = logging.getLogger(__name__)
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: LuciConfigEntry,
-    async_add_entities: AddConfigEntryEntitiesCallback,
+    async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up device tracker for OpenWrt LuCI component."""
     coordinator = entry.runtime_data
@@ -68,9 +68,9 @@ class LuciStationTrackerEntity(CoordinatorEntity[LuciCoordinator], ScannerEntity
         return self._mac
 
     @property
-    def name(self) -> str:
-        """Return the display name."""
-        return f"Client {self._mac}"
+    def name(self) -> str | None:
+        """Return None so the entity name inherits the device name."""
+        return None
 
     @property
     def hostname(self) -> str | None:
@@ -119,12 +119,9 @@ class LuciStationTrackerEntity(CoordinatorEntity[LuciCoordinator], ScannerEntity
     @property
     def device_info(self) -> DeviceInfo:
         """Link this client device to the OpenWrt router parent in the Device Registry."""
-        info: dict[str, Any] = {
-            "connections": {(CONNECTION_NETWORK_MAC, self._mac)},
-            "identifiers": {(DOMAIN, f"{self.coordinator.config_entry.entry_id}_{self._mac}")},
-            "name": f"Wi-Fi Client {self._mac}",
-        }
-        if self.coordinator.parent_device_id:
-            info["via_device_id"] = self.coordinator.parent_device_id
-
-        return DeviceInfo(**info)
+        return DeviceInfo(
+            connections={(CONNECTION_NETWORK_MAC, self._mac)},
+            identifiers={(DOMAIN, f"{self.coordinator.config_entry.entry_id}_{self._mac}")},
+            name=f"Wi-Fi Client {self._mac}",
+            via_device=(DOMAIN, self.coordinator.config_entry.entry_id),
+        )
