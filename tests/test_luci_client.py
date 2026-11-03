@@ -138,8 +138,18 @@ class TestLuciClient(unittest.TestCase):
     def test_login_failure_exception(self, mock_call):
         """Test login failure when _call raises exception."""
         mock_call.side_effect = LuciClientError("Network error")
-        with self.assertRaises(LuciAuthError):
+        with self.assertRaises(LuciClientError):
             self.client.login()
+
+    @patch("time.sleep", return_value=None)
+    @patch("urllib.request.urlopen")
+    def test_login_host_unreachable_raises_client_error(self, mock_urlopen, mock_sleep):
+        """Test login when host is unreachable raises LuciClientError, not LuciAuthError."""
+        mock_urlopen.side_effect = urllib.error.URLError(OSError(113, "Host is unreachable"))
+        with self.assertRaises(LuciClientError) as ctx:
+            self.client.login()
+        self.assertNotIsInstance(ctx.exception, LuciAuthError)
+        self.assertIn("Host is unreachable", str(ctx.exception))
 
     @patch.object(LuciClient, "_call")
     def test_exec(self, mock_call):

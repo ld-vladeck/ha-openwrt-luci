@@ -133,6 +133,12 @@ class LuciClient:
         """Authenticate with the router and obtain a session token."""
         try:
             result = self._call("auth", "login", [self.username, self.password], retry_auth=False)
+        except LuciAuthError:
+            self.token = None
+            raise
+        except LuciClientError:
+            self.token = None
+            raise
         except Exception as err:
             self.token = None
             raise LuciAuthError(f"Cannot login to {self.host}: {err}") from err

@@ -1,6 +1,7 @@
 """Test the OpenWrt LuCI component initialization."""
 
 from unittest.mock import MagicMock, patch
+import urllib.error
 import pytest
 
 from homeassistant.config_entries import ConfigEntryState
@@ -83,4 +84,25 @@ async def test_setup_entry_not_ready(hass: HomeAssistant) -> None:
         assert not await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
 
+    assert entry.state == ConfigEntryState.SETUP_RETRY
+
+
+async def test_setup_entry_host_unreachable_network_error(hass: HomeAssistant) -> None:
+    """Test setup retries with ConfigEntryNotReady when host is unreachable (regression test)."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="192.168.1.102",
+        data={**MOCK_CONFIG_ENTRY_DATA, "host": "192.168.1.102"},
+    )
+    entry.add_to_hass(hass)
+
+    with patch("time.sleep", return_value=None), \
+         patch(
+             "urllib.request.urlopen",
+             side_effect=urllib.error.URLError(OSError(113, "Host is unreachable")),
+         ):
+        assert not await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    # Must be SETUP_RETRY (not SETUP_ERROR) so Home Assistant retries later
     assert entry.state == ConfigEntryState.SETUP_RETRY
