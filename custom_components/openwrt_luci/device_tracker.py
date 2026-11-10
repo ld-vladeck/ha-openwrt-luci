@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from homeassistant.components.device_tracker import ScannerEntity, SourceType
+from homeassistant.components.device_tracker import ScannerEntity
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC, DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -45,37 +45,34 @@ class LuciStationTrackerEntity(CoordinatorEntity[LuciCoordinator], ScannerEntity
     """Representation of a wireless device connected to OpenWrt."""
 
     _attr_has_entity_name = True
+    _attr_name = None
+    _attr_entity_registry_enabled_default = True
 
     def __init__(self, coordinator: LuciCoordinator, mac: str) -> None:
         """Initialize the station tracker."""
         super().__init__(coordinator)
         self._mac = mac
-        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_{mac}"
+        self._attr_mac_address = mac
+        self._attr_device_info = DeviceInfo(
+            connections={(CONNECTION_NETWORK_MAC, mac)},
+            name=f"Wi-Fi Client {mac}",
+            via_device=(DOMAIN, coordinator.config_entry.entry_id),
+        )
+
+    @property
+    def device_info(self) -> DeviceInfo | None:
+        """Return device info for this client."""
+        return self._attr_device_info
+
+    @property
+    def entity_registry_enabled_default(self) -> bool:
+        """Return if entity is enabled by default."""
+        return self._attr_entity_registry_enabled_default
 
     @property
     def station_data(self) -> dict[str, Any]:
         """Return station dictionary from coordinator data."""
         return self.coordinator.data.get("stations", {}).get(self._mac, {})
-
-    @property
-    def source_type(self) -> SourceType:
-        """Return the source type."""
-        return SourceType.ROUTER
-
-    @property
-    def mac_address(self) -> str:
-        """Return the MAC address."""
-        return self._mac
-
-    @property
-    def name(self) -> str | None:
-        """Return None so the entity name inherits the device name."""
-        return None
-
-    @property
-    def hostname(self) -> str | None:
-        """Return the hostname if known."""
-        return None
 
     @property
     def ip_address(self) -> str | None:
@@ -99,29 +96,16 @@ class LuciStationTrackerEntity(CoordinatorEntity[LuciCoordinator], ScannerEntity
             "channel": st.get("channel", "1"),
             "ssid": st.get("ssid", "Wireless"),
         }
-        if st.get("signal_dbm") is not None:
-            attrs["signal_dbm"] = st["signal_dbm"]
-        if st.get("signal_avg_dbm") is not None:
-            attrs["signal_avg_dbm"] = st["signal_avg_dbm"]
-        if st.get("tx_bitrate_mbit") is not None:
-            attrs["tx_bitrate_mbit"] = st["tx_bitrate_mbit"]
-        if st.get("rx_bitrate_mbit") is not None:
-            attrs["rx_bitrate_mbit"] = st["rx_bitrate_mbit"]
-        if st.get("rx_bytes"):
-            attrs["rx_bytes"] = st["rx_bytes"]
-        if st.get("tx_bytes"):
-            attrs["tx_bytes"] = st["tx_bytes"]
-        if st.get("connected_time_sec"):
-            attrs["connected_time_sec"] = st["connected_time_sec"]
+        for key in (
+            "signal_dbm",
+            "signal_avg_dbm",
+            "tx_bitrate_mbit",
+            "rx_bitrate_mbit",
+            "rx_bytes",
+            "tx_bytes",
+            "connected_time_sec",
+        ):
+            if st.get(key) is not None:
+                attrs[key] = st[key]
 
         return attrs
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Link this client device to the OpenWrt router parent in the Device Registry."""
-        return DeviceInfo(
-            connections={(CONNECTION_NETWORK_MAC, self._mac)},
-            identifiers={(DOMAIN, f"{self.coordinator.config_entry.entry_id}_{self._mac}")},
-            name=f"Wi-Fi Client {self._mac}",
-            via_device=(DOMAIN, self.coordinator.config_entry.entry_id),
-        )

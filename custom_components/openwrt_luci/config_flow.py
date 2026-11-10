@@ -61,7 +61,13 @@ class OpenWrtLuciConfigFlow(ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            host = user_input[CONF_HOST].strip()
+            raw_host = user_input[CONF_HOST].strip()
+            if raw_host.startswith("http://"):
+                raw_host = raw_host[7:]
+            elif raw_host.startswith("https://"):
+                raw_host = raw_host[8:]
+                user_input[CONF_SSL] = True
+            host = raw_host.rstrip("/")
             user_input[CONF_HOST] = host
 
             await self.async_set_unique_id(host)
@@ -78,9 +84,11 @@ class OpenWrtLuciConfigFlow(ConfigFlow, domain=DOMAIN):
             try:
                 await self.hass.async_add_executor_job(client.login)
                 sys_info = await self.hass.async_add_executor_job(client.get_system_info)
-            except LuciAuthError:
+            except LuciAuthError as err:
+                _LOGGER.warning("Authentication failed for OpenWrt LuCI at %s: %s", host, err)
                 errors["base"] = "invalid_auth"
-            except LuciClientError:
+            except LuciClientError as err:
+                _LOGGER.warning("Cannot connect to OpenWrt LuCI at %s: %s", host, err)
                 errors["base"] = "cannot_connect"
             except Exception as err:
                 _LOGGER.exception("Unexpected exception during OpenWrt LuCI setup: %s", err)
@@ -92,7 +100,9 @@ class OpenWrtLuciConfigFlow(ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="user",
-            data_schema=STEP_USER_DATA_SCHEMA,
+            data_schema=self.add_suggested_values_to_schema(
+                STEP_USER_DATA_SCHEMA, user_input
+            ),
             errors=errors,
         )
 
